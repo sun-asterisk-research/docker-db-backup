@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -o pipefail
+
+NOW=$(date +"%Y_%m_%d_%H%M%S")
+BACKUP_NAME="${DB_DATABASE}_${NOW}.sql.gz"
+
+msg() {
+    echo [$(date +"%Y-%m-%d %H:%M:%S")]["$1"] "$2"
+}
+
+delete_old_backups() {
+    xargs -r -- rm -v | msg "INFO" "Deleted $(wc -l) old backup(s)"
+}
+
+if [ $DB_TYPE == "mysql" ]; then
+    DB_PORT=${DB_PORT:-3306} mysql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
+else
+    msg "ERROR" "Unsupported database type: $DB_TYPE"
+    exit 1
+fi
+
+if [ $? == 0 ]; then
+    msg "INFO" "Backup completed. File name: $BACKUP_NAME"
+else
+    msg "ERROR" "Backup failed with status code $?"
+    exit 1
+fi
+
+# Cleanup old backups
+if [ -n "$DB_BACKUP_MAX_DAYS" ]; then
+    msg "INFO" "Cleaning up backups older than $DB_BACKUP_MAX_DAYS days"
+    find /data/backup -path *.sql.gz -type f -mtime "+$DB_BACKUP_MAX_DAYS" | delete_old_backups
+fi
+
+if [ -n "$DB_BACKUP_MAX_FILES" ]; then
+    msg "INFO" "Keeping maximum $DB_BACKUP_MAX_FILES backup(s)"
+    find /data/backup -path *.sql.gz -type f | tail -n "+$(( $DB_BACKUP_MAX_FILES + 1 ))" | delete_old_backups
+fi

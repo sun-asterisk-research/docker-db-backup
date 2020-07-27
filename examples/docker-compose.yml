@@ -1,0 +1,25 @@
+version: '2.2'
+
+services:
+  mysql:
+    image: mysql:8
+    restart: always
+    volumes:
+      - /data/mysql:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=example
+      - MYSQL_USER=example
+      - MYSQL_PASSWORD=secret
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+
+  mysql-backup:
+    image: sunasteriskrnd/db-backup
+    restart: always
+    volumes:
+      - /data/backup:/data/backup
+    environment:
+      - DB_TYPE=mysql
+      - DB_HOST=mysql
+      - DB_DATABASE=example
+      - DB_USER=example
+      - DB_PASSWORD=secret

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+check_missing_env() {
+    for var in $@; do
+        if [ -z "${!var}" ]; then
+            missing="$missing\n- $var"
+        fi
+    done
+
+    if [[ -n "$missing" ]]; then
+        echo -ne "Missing required environment variables:$missing"
+        exit 1
+    fi
+}
+
+validate_db_type() {
+    if [[ ! "$DB_TYPE" =~ ^mysql$ ]]; then
+        echo "Unsupported database type: $DB_TYPE"
+        exit 1
+    fi
+}
+
+if [ $# != 0 ]; then
+    exec "$@"
+else
+    check_missing_env DB_TYPE DB_HOST DB_DATABASE DB_USER DB_PASSWORD
+    validate_db_type "$DB_TYPE"
+
+    echo "$DB_BACKUP_CRON_SCHEDULE db-backup >> /var/log/db-backup.log" | crontab -u "$DB_BACKUP_USER" -
+
+    exec crond -fl 2
+fi
