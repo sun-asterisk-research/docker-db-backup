@@ -14,7 +14,7 @@ check_missing_env() {
 }
 
 validate_db_type() {
-    if [[ ! "$DB_TYPE" =~ ^mysql$ ]]; then
+    if [[ "$DB_TYPE" != mysql && "$DB_TYPE" != postgresql ]]; then
         echo "Unsupported database type: $DB_TYPE"
         exit 1
     fi
