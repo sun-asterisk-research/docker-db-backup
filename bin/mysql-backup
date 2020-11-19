@@ -1,8 +1,8 @@
 #!/bin/bash
 
 mysqldump -h "$DB_HOST" \
-   -P "$DB_PORT" \
-   -u "$DB_USER" \
-   -p"$DB_PASSWORD" \
-   $DB_BACKUP_EXTRA_OPTS \
-   "$DB_DATABASE"
+    -P "${DB_PORT:-3306}" \
+    -u "$DB_USER" \
+    -p"$DB_PASSWORD" \
+    $DB_BACKUP_EXTRA_OPTS \
+    "$DB_DATABASE"

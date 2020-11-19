@@ -1,6 +1,7 @@
 #!/bin/bash
 
 PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" \
-        -p "$DB_PORT" \
-        -U "$DB_USER" \
-        -d "$DB_DATABASE" 
+    -p "${DB_PORT:-5432}" \
+    -U "$DB_USER" \
+    -d "$DB_DATABASE" \
+    $DB_BACKUP_EXTRA_OPTS

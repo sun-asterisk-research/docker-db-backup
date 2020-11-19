@@ -1,33 +1,29 @@
 version: "2.2"
 services:
-  db:
-    image: postgres:11-alpine
-    container_name: my_postgresql
+  postgres:
+    image: postgres:12-alpine
     restart: always
     environment:
-      - POSTGRES_PASSWORD=1234
       - POSTGRES_DB=test
       - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=secret
     volumes:
       - postgres:/var/lib/postgresql/data
 
-  backup:
-    image: postgresql-backup:1.0
-    container_name: postgresql_backup
-    build: ./
-    links:
-      - db:postgres
+  db-backup:
+    image: sunasteriskrns/db-backup
     restart: always
-    init: true
     environment:
       - DB_TYPE=postgresql
+      - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_HOST=my_postgresql
-      - DB_USER=test
-      - DB_PASSWORD=1234
       - DB_DATABASE=test
+      - DB_USER=test
+      - DB_PASSWORD=secret
+      - DB_BACKUP_MAX_FILES=10
     volumes:
       - /data/backup:/data/backup
 
 volumes:
+  backup:
   postgres:

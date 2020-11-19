@@ -2,40 +2,38 @@
 
 set -o pipefail
 
+source /usr/local/lib/db-backup/utils.sh
+
+require fmt
+
 NOW=$(date +"%Y_%m_%d_%H%M%S")
 BACKUP_NAME="${DB_DATABASE}_${NOW}.sql.gz"
 
-msg() {
-    echo [$(date +"%Y-%m-%d %H:%M:%S")]["$1"] "$2"
-}
-
 delete_old_backups() {
-    xargs -r -- rm -v | msg "INFO" "Deleted $(wc -l) old backup(s)"
+    xargs -r -- rm -v | info "Deleted $(wc -l) old backup(s)"
 }
 
-if [ $DB_TYPE == "mysql" ]; then
-    DB_PORT=${DB_PORT:-3306} mysql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
-elif [ $DB_TYPE == "postgresql" ]; then
-    DB_PORT=${DB_PORT:-5432} postgresql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
+if [ "$DB_TYPE" == "mysql" ] || [ "$DB_TYPE" == "mariadb" ]; then
+    mysql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
+elif [ "$DB_TYPE" == "postgresql" ]; then
+    postgresql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
 else
-    msg "ERROR" "Unsupported database type: $DB_TYPE"
-    exit 1
+    fatal "Unsupported database type: $DB_TYPE"
 fi
 
 if [ $? == 0 ]; then
-    msg "INFO" "Backup completed. File name: $BACKUP_NAME"
+    info "Backup completed. File name: $BACKUP_NAME"
 else
-    msg "ERROR" "Backup failed with status code $?"
-    exit 1
+    fatal "Backup failed with status code $?"
 fi
 
 # Cleanup old backups
 if [ -n "$DB_BACKUP_MAX_DAYS" ]; then
-    msg "INFO" "Cleaning up backups older than $DB_BACKUP_MAX_DAYS days"
+    info "Cleaning up backups older than $DB_BACKUP_MAX_DAYS days"
     find /data/backup -path *.sql.gz -type f -mtime "+$DB_BACKUP_MAX_DAYS" | delete_old_backups
 fi
 
 if [ -n "$DB_BACKUP_MAX_FILES" ]; then
-    msg "INFO" "Keeping maximum $DB_BACKUP_MAX_FILES backup(s)"
+    info "Keeping maximum $DB_BACKUP_MAX_FILES backup(s)"
     find /data/backup -path *.sql.gz -type f | tail -n "+$(( $DB_BACKUP_MAX_FILES + 1 ))" | delete_old_backups
 fi
