@@ -5,7 +5,8 @@ RUN apk add --no-cache \
     gzip \
     mysql-client \
     mariadb-connector-c \
-    postgresql-client
+    postgresql-client \
+    tzdata
 
 ENV DB_BACKUP_CRON_SCHEDULE="0 0 * * *"
 ENV DB_BACKUP_USER=root
