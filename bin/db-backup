@@ -6,34 +6,84 @@ source /usr/local/lib/db-backup/utils.sh
 
 require fmt
 
+OUT_DIR=/data/backup
 NOW=$(date +"%Y_%m_%d_%H%M%S")
-BACKUP_NAME="${DB_DATABASE}_${NOW}.sql.gz"
+BACKUP_FILENAME="${DB_DATABASE}_${NOW}${DB_BACKUP_FILE_EXTENSION}"
+
+if [ "$DB_BACKUP_COMPRESSION" = gzip ]; then
+    BACKUP_FILENAME="$BACKUP_FILENAME.gz"
+fi
+
+OUT_FILE="$OUT_DIR/$BACKUP_FILENAME"
+
+run_backup() {
+    if [ "$DB_TYPE" = "mysql" ] || [ "$DB_TYPE" = "mariadb" ]; then
+        mysql-backup
+    elif [ "$DB_TYPE" = "postgresql" ]; then
+        postgresql-backup
+    else
+        fatal "Unsupported database type: $DB_TYPE"
+    fi
+}
+
+run_post_process() {
+    if [ "$DB_BACKUP_COMPRESSION" = gzip ]; then
+        gzip -c > "$OUT_FILE"
+    else
+        dd status=none of="$OUT_FILE"
+    fi
+}
+
+filter_backup_files() {
+    name_pattern="${DB_DATABASE}_\d{4}_\d{2}_\d{2}_\d{6}${DB_BACKUP_FILE_EXTENSION}"
+
+    if [ "$DB_BACKUP_COMPRESSION" = gzip ]; then
+        name_pattern="${name_pattern}.gz"
+    fi
+
+    sed -nE "/${name_pattern}/p"
+}
 
 delete_old_backups() {
     xargs -r -- rm -v | info "Deleted $(wc -l) old backup(s)"
 }
 
-if [ "$DB_TYPE" == "mysql" ] || [ "$DB_TYPE" == "mariadb" ]; then
-    mysql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
-elif [ "$DB_TYPE" == "postgresql" ]; then
-    postgresql-backup | gzip -c > "/data/backup/$BACKUP_NAME"
-else
-    fatal "Unsupported database type: $DB_TYPE"
-fi
+cleanup() {
+    if [ -n "$DB_BACKUP_MAX_DAYS" ]; then
+        info "Cleanup: remove backups older than $DB_BACKUP_MAX_DAYS days"
+        find "$OUT_DIR" -type f -mtime "+$DB_BACKUP_MAX_DAYS" | filter_backup_files | delete_old_backups
+    fi
 
-if [ $? == 0 ]; then
-    info "Backup completed. File name: $BACKUP_NAME"
-else
-    fatal "Backup failed with status code $?"
-fi
+    if [ -n "$DB_BACKUP_MAX_FILES" ]; then
+        info "Cleanup: keeping maximum $DB_BACKUP_MAX_FILES backup(s)"
+        find "$OUT_DIR" -type f | filter_backup_files | sort | head -n "-$DB_BACKUP_MAX_FILES" | delete_old_backups
+    fi
+}
 
-# Cleanup old backups
-if [ -n "$DB_BACKUP_MAX_DAYS" ]; then
-    info "Cleaning up backups older than $DB_BACKUP_MAX_DAYS days"
-    find /data/backup -path *.sql.gz -type f -mtime "+$DB_BACKUP_MAX_DAYS" | delete_old_backups
-fi
+remove_incomplete_backup() {
+    if [ -f "$OUT_FILE" ]; then
+        info "Removing incomplete backup file: $BACKUP_FILENAME"
+        rm "$OUT_FILE"
+    fi
+}
 
-if [ -n "$DB_BACKUP_MAX_FILES" ]; then
-    info "Keeping maximum $DB_BACKUP_MAX_FILES backup(s)"
-    find /data/backup -path *.sql.gz -type f | tail -n "+$(( $DB_BACKUP_MAX_FILES + 1 ))" | delete_old_backups
-fi
+main() {
+    trap "info Interrupted; remove_incomplete_backup; exit 0" SIGINT SIGQUIT SIGKILL SIGTERM
+
+    info "Starting backup for database '$DB_DATABASE' on $DB_HOST:${DB_PORT:-<default_port>}"
+
+    run_backup | run_post_process
+
+    status=$?
+
+    if [ "$status" = 0 ]; then
+        info "Backup completed. Backup file: $BACKUP_FILENAME"
+    else
+        remove_incomplete_backup
+        fatal "Backup failed with status code $status"
+    fi
+
+    cleanup
+}
+
+main

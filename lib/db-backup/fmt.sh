@@ -13,10 +13,10 @@ function warn() {
 }
 
 function error() {
-    msg "ERROR" "$1"
+    msg "ERROR" "$1" >&2
 }
 
 function fatal() {
-    msg "FATAL" "$1"
+    msg "FATAL" "$1" >&2
     exit 1
 }
